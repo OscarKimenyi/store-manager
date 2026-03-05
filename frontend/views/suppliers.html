@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suppliers - Inventory Management</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h3>Inventory Pro</h3>
+            <button class="toggle-btn" id="sidebarToggle">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+        </div>
+        
+        <div class="menu">
+            <a href="/dashboard" class="menu-item">
+                <i class="bi bi-speedometer2"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="/categories" class="menu-item">
+                <i class="bi bi-tags"></i>
+                <span>Categories</span>
+            </a>
+            <a href="/products" class="menu-item">
+                <i class="bi bi-box-seam"></i>
+                <span>Products</span>
+            </a>
+            <a href="/suppliers" class="menu-item active">
+                <i class="bi bi-truck"></i>
+                <span>Suppliers</span>
+            </a>
+            <a href="/purchases" class="menu-item">
+                <i class="bi bi-cart-plus"></i>
+                <span>Purchases</span>
+            </a>
+            <a href="/payments" class="menu-item">
+                <i class="bi bi-credit-card"></i>
+                <span>Supplier Payments</span>
+            </a>
+            <a href="/sales" class="menu-item">
+                <i class="bi bi-graph-up"></i>
+                <span>Sales</span>
+            </a>
+            <a href="/reports" class="menu-item">
+                <i class="bi bi-file-text"></i>
+                <span>Reports</span>
+            </a>
+            <hr class="my-2 bg-white opacity-25">
+            <a href="#" class="menu-item" id="logoutBtn">
+                <i class="bi bi-box-arrow-right"></i>
+                <span>Logout</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content" id="mainContent">
+        <!-- Top Navbar -->
+        <nav class="top-navbar">
+            <div class="d-flex align-items-center">
+                <button class="btn d-md-none" id="mobileToggle">
+                    <i class="bi bi-list fs-4"></i>
+                </button>
+                <div class="page-title">
+                    <h4>Suppliers</h4>
+                </div>
+            </div>
+            
+            <div class="user-menu">
+                <div class="notification-badge">
+                    <i class="bi bi-bell"></i>
+                    <span class="badge">3</span>
+                </div>
+                
+                <div class="user-dropdown dropdown">
+                    <div class="user-avatar" data-bs-toggle="dropdown" aria-expanded="false">
+                        AD
+                    </div>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><h6 class="dropdown-header user-name">Admin User</h6></li>
+                        <li><span class="dropdown-item-text user-role">Administrator</span></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i>Profile</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>Settings</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="#" id="logoutBtn">
+                            <i class="bi bi-box-arrow-right me-2"></i>Logout
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Content Area -->
+        <div class="content">
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb" class="mb-4">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/dashboard">Home</a></li>
+                    <li class="breadcrumb-item active" id="breadcrumbCurrent">Suppliers</li>
+                </ol>
+            </nav>
+            
+            <!-- Page Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="mb-0" id="pageTitle">Supplier Management</h4>
+                <button class="btn btn-primary" onclick="openSupplierModal()" id="addButton">
+                    <i class="bi bi-plus-circle me-2"></i>Add Supplier
+                </button>
+                <button class="btn btn-outline-secondary" onclick="window.location.href='/suppliers'" style="display: none;" id="backButton">
+                    <i class="bi bi-arrow-left me-2"></i>Back to Suppliers
+                </button>
+            </div>
+
+            <!-- Supplier List View -->
+            <div id="listView">
+                <!-- Filters -->
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="searchInput" placeholder="Search suppliers...">
+                    </div>
+                </div>
+
+                <!-- Suppliers Table -->
+                <div class="table-container">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="suppliersTable">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Phone</th>
+                                    <th>Email</th>
+                                    <th>Address</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Data will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Supplier Details View -->
+            <div id="detailsView" style="display: none;">
+                <!-- Supplier Info Card -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <h4 id="supplierName" class="mb-3"></h4>
+                                        <p id="supplierPhone" class="mb-2"></p>
+                                        <p id="supplierEmail" class="mb-2"></p>
+                                        <p id="supplierAddress" class="mb-2"></p>
+                                    </div>
+                                    <div class="col-md-4 text-end">
+                                        <button class="btn btn-outline-primary me-2" onclick="editSupplier(currentSupplierId)">
+                                            <i class="bi bi-pencil"></i> Edit
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="row g-4 mb-4">
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: rgba(37, 99, 235, 0.1); color: #2563eb;">
+                                <i class="bi bi-cart-check"></i>
+                            </div>
+                            <div class="stat-details">
+                                <h3 id="totalPurchases">0</h3>
+                                <p>Total Purchases</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">
+                                <i class="bi bi-cash"></i>
+                            </div>
+                            <div class="stat-details">
+                                <h3 id="totalPurchaseAmount">$0</h3>
+                                <p>Purchase Amount</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
+                                <i class="bi bi-credit-card"></i>
+                            </div>
+                            <div class="stat-details">
+                                <h3 id="balanceAmount">$0</h3>
+                                <p>Outstanding Balance</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Purchase History -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="table-container">
+                            <h5 class="mb-3">Purchase History</h5>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Product</th>
+                                            <th>Quantity</th>
+                                            <th>Unit Price</th>
+                                            <th>Total</th>
+                                            <th>Status</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="purchasesTableBody">
+                                        <!-- Data will be populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment History -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="table-container">
+                            <h5 class="mb-3">Payment History</h5>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Purchase #</th>
+                                            <th>Amount</th>
+                                            <th>Method</th>
+                                            <th>Receipt</th>
+                                            <th>Notes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="paymentsTableBody">
+                                        <!-- Data will be populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supplier Modal -->
+    <div class="modal fade" id="supplierModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Add Supplier</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="supplierForm">
+                        <input type="hidden" id="supplierId">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Supplier Name *</label>
+                            <input type="text" class="form-control" id="name" required maxlength="200">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Phone</label>
+                            <input type="tel" class="form-control" id="phone" maxlength="20">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" maxlength="100">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Address</label>
+                            <textarea class="form-control" id="address" rows="3" maxlength="500"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveSupplier()">Save Supplier</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Delete</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete this supplier? This action cannot be undone.</p>
+                    <p class="text-warning mb-0"><i class="bi bi-exclamation-triangle me-2"></i>All purchase and payment history will be preserved but the supplier will be marked as inactive.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container"></div>
+
+    <!-- Loading Spinner -->
+    <div class="spinner-overlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- DataTables -->
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+    
+    <!-- Custom JS -->
+    <script src="/js/main.js"></script>
+    <script src="/js/suppliers.js"></script>
+    
+    <script>
+        // Handle view switching based on URL parameter
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const supplierId = urlParams.get('id');
+            
+            if (supplierId) {
+                document.getElementById('listView').style.display = 'none';
+                document.getElementById('detailsView').style.display = 'block';
+                document.getElementById('pageTitle').textContent = 'Supplier Details';
+                document.getElementById('addButton').style.display = 'none';
+                document.getElementById('backButton').style.display = 'inline-block';
+                document.getElementById('breadcrumbCurrent').innerHTML = '<a href="/suppliers">Suppliers</a> / Supplier Details';
+            } else {
+                document.getElementById('listView').style.display = 'block';
+                document.getElementById('detailsView').style.display = 'none';
+                document.getElementById('pageTitle').textContent = 'Supplier Management';
+                document.getElementById('addButton').style.display = 'inline-block';
+                document.getElementById('backButton').style.display = 'none';
+                document.getElementById('breadcrumbCurrent').textContent = 'Suppliers';
+            }
+        });
+    </script>
+</body>
+</html>
