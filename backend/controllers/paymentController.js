@@ -47,9 +47,17 @@ exports.createPayment = async (req, res) => {
         
         const paymentId = await Payment.create(paymentData);
         
-        // Update purchase payment status
+        // Update purchase payment status if purchase_id is provided
         if (req.body.purchase_id) {
             await Purchase.updatePaymentStatus(req.body.purchase_id);
+            
+            // Get updated purchase to verify status
+            const [updatedPurchase] = await connection.query(
+                'SELECT payment_status, total_paid, total_amount FROM purchases WHERE id = ?',
+                [req.body.purchase_id]
+            );
+            
+            console.log('Updated purchase status:', updatedPurchase[0]); // Debug log
         }
         
         await connection.commit();

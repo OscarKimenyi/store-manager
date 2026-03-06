@@ -39,7 +39,7 @@ class Purchase {
     
     static async findById(id) {
         const [rows] = await db.query(
-            `SELECT p.*, pr.name as product_name, pr.unit_type, s.name as supplier_name, s.phone as supplier_phone 
+            `SELECT p.*, pr.name as product_name, pr.unit_type, s.name as supplier_name, s.phone as supplier_phone, s.id as supplier_id
              FROM purchases p
              JOIN products pr ON p.product_id = pr.id
              JOIN suppliers s ON p.supplier_id = s.id
@@ -60,7 +60,6 @@ class Purchase {
             total_amount, purchase_date, payment_status, notes
         });
         
-        // IMPORTANT FIX: Remove total_amount and balance from the INSERT
         // These are GENERATED columns in the database
         const [result] = await db.query(
             `INSERT INTO purchases 
@@ -117,38 +116,57 @@ class Purchase {
     }
     
     static async updatePaymentStatus(purchaseId) {
-        // Calculate total paid from payments
-        const [payments] = await db.query(
-            'SELECT COALESCE(SUM(amount_paid), 0) as total_paid FROM supplier_payments WHERE purchase_id = ?',
-            [purchaseId]
-        );
+        const connection = await db.getConnection();
         
-        const totalPaid = payments[0].total_paid;
-        
-        // Get purchase total
-        const [purchase] = await db.query(
-            'SELECT total_amount FROM purchases WHERE id = ?',
-            [purchaseId]
-        );
-        
-        if (purchase.length === 0) return false;
-        
-        const totalAmount = purchase[0].total_amount;
-        let paymentStatus = 'Unpaid';
-        
-        if (totalPaid >= totalAmount) {
-            paymentStatus = 'Paid';
-        } else if (totalPaid > 0) {
-            paymentStatus = 'Partial';
+        try {
+            // Calculate total paid from payments
+            const [payments] = await connection.query(
+                'SELECT COALESCE(SUM(amount_paid), 0) as total_paid FROM supplier_payments WHERE purchase_id = ?',
+                [purchaseId]
+            );
+            
+            const totalPaid = parseFloat(payments[0].total_paid);
+            
+            // Get purchase total
+            const [purchase] = await connection.query(
+                'SELECT total_amount FROM purchases WHERE id = ?',
+                [purchaseId]
+            );
+            
+            if (purchase.length === 0) return false;
+            
+            const totalAmount = parseFloat(purchase[0].total_amount);
+            const balance = totalAmount - totalPaid;
+            
+            // Determine payment status
+            let paymentStatus = 'Unpaid';
+            if (totalPaid >= totalAmount) {
+                paymentStatus = 'Paid';
+            } else if (totalPaid > 0) {
+                paymentStatus = 'Partial';
+            }
+            
+            console.log('Updating purchase:', {
+                purchaseId,
+                totalPaid,
+                totalAmount,
+                balance,
+                paymentStatus
+            });
+            
+            // Update purchase
+            const [result] = await connection.query(
+                'UPDATE purchases SET total_paid = ?, balance = ?, payment_status = ? WHERE id = ?',
+                [totalPaid, balance, paymentStatus, purchaseId]
+            );
+            
+            return result.affectedRows > 0;
+        } catch (error) {
+            console.error('Error updating payment status:', error);
+            throw error;
+        } finally {
+            connection.release();
         }
-        
-        // Update purchase
-        const [result] = await db.query(
-            'UPDATE purchases SET total_paid = ?, payment_status = ? WHERE id = ?',
-            [totalPaid, paymentStatus, purchaseId]
-        );
-        
-        return result.affectedRows > 0;
     }
 }
 
