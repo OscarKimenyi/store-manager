@@ -1,3 +1,13 @@
+function formatDateOnly(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+}
+
 // Suppliers Management Module
 let suppliersTable;
 let deleteSupplierId = null;
@@ -244,21 +254,30 @@ function displaySupplierPurchases(purchases) {
         return;
     }
     
-    tbody.innerHTML = purchases.map(purchase => `
-        <tr>
-            <td>${formatDate(purchase.purchase_date)}</td>
-            <td>${escapeHtml(purchase.product_name || 'N/A')}</td>
-            <td>${formatNumber(purchase.quantity || 0)}</td>
-            <td>${formatCurrency(purchase.unit_price || 0)}</td>
-            <td>${formatCurrency(purchase.total_amount || 0)}</td>
-            <td>${getStatusBadge(purchase.payment_status || 'Unpaid')}</td>
-            <td>
-                <button class="btn btn-sm btn-outline-primary" onclick="makePayment(${purchase.id})">
-                    <i class="bi bi-cash"></i> Pay
-                </button>
-            </td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = purchases.map(purchase => {
+        // Check if payment is complete - only show pay button if NOT paid
+        const isPaid = purchase.payment_status === 'Paid';
+        const balance = parseFloat(purchase.balance || purchase.total_amount - (purchase.total_paid || 0));
+        
+        return `
+            <tr>
+                <td>${formatDateOnly(purchase.purchase_date)}</td>
+                <td>${escapeHtml(purchase.product_name || 'N/A')}</td>
+                <td>${formatNumber(purchase.quantity || 0)}</td>
+                <td>${formatCurrency(purchase.unit_price || 0)}</td>
+                <td>${formatCurrency(purchase.total_amount || 0)}</td>
+                <td>${getStatusBadge(purchase.payment_status || 'Unpaid')}</td>
+                <td>
+                    ${!isPaid ? 
+                        `<button class="btn btn-sm btn-outline-primary" onclick="makePayment(${purchase.id}, ${purchase.supplier_id})">
+                            <i class="bi bi-cash"></i> Pay (${formatCurrency(balance)})
+                        </button>` : 
+                        '<span class="text-muted">-</span>'
+                    }
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
 
 function displaySupplierPayments(payments) {
@@ -266,30 +285,26 @@ function displaySupplierPayments(payments) {
     if (!tbody) return;
     
     if (!payments || payments.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">No payments found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">No payments found</td></tr>';
         return;
     }
     
-    tbody.innerHTML = payments.map(payment => {
-        // Make sure payment.id exists
-        const paymentId = payment.id || payment.payment_id;
-        return `
-            <tr>
-                <td>${formatDate(payment.payment_date)}</td>
-                <td>${payment.purchase_id ? `#${payment.purchase_id}` : 'N/A'}</td>
-                <td>${formatCurrency(payment.amount_paid || 0)}</td>
-                <td><span class="badge bg-info">${escapeHtml(payment.payment_method || 'Cash')}</span></td>
-                <td>
-                    ${payment.receipt_path ? 
-                        `<button class="btn btn-sm btn-outline-success" onclick="viewReceipt(${paymentId})"><i class="bi bi-file-earmark-pdf"></i> View
-                        </button>` : 
-                        '<span class="text-muted">No receipt</span>'
-                    }
-                </td>
-                <td>${escapeHtml(payment.notes || '')}</td>
-            </tr>
-        `;
-    }).join('');
+    tbody.innerHTML = payments.map(payment => `
+        <tr>
+            <td>${formatDateOnly(payment.payment_date)}</td>
+            <td>${payment.purchase_id ? `#${payment.purchase_id}` : 'N/A'}</td>
+            <td>${formatCurrency(payment.amount_paid || 0)}</td>
+            <td>
+                ${payment.receipt_path ? 
+                    `<button class="btn btn-sm btn-outline-success" onclick="viewReceipt('${payment.receipt_path}', ${payment.id})">
+                        <i class="bi bi-file-earmark-pdf"></i> View
+                    </button>` : 
+                    '<span class="text-muted">No receipt</span>'
+                }
+            </td>
+            <td>${escapeHtml(payment.notes || '')}</td>
+        </tr>
+    `).join('');
 }
 
 function showDeleteModal(id) {
@@ -314,8 +329,12 @@ function confirmDelete() {
     }
 }
 
-function makePayment(purchaseId) {
-    window.location.href = `/payments?purchase=${purchaseId}`;
+function makePayment(purchaseId, supplierId) {
+    if (purchaseId) {
+        window.location.href = `/payments?purchase=${purchaseId}`;
+    } else if (supplierId) {
+        window.location.href = `/payments?supplier=${supplierId}`;
+    }
 }
 
 function viewReceipt(paymentId) {

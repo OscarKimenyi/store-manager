@@ -109,7 +109,14 @@ function initializeSalesTable() {
                 {
                     data: 'sale_date',
                     render: function(data) {
-                        return formatDate(data);
+                        // Format date without time
+                        if (!data) return 'N/A';
+                        const date = new Date(data);
+                        return date.toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                        });
                     }
                 },
                 { data: 'product_name' },

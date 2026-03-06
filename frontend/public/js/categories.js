@@ -32,12 +32,6 @@ function initializeCategoriesTable() {
                     }
                 },
                 {
-                    data: null,
-                    render: function(data) {
-                        return `<span class="badge bg-info">${data.product_count || 0} products</span>`;
-                    }
-                },
-                {
                     data: 'created_at',
                     render: function(data) {
                         return formatDate(data);
