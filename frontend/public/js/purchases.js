@@ -23,7 +23,9 @@ function initializeEventListeners() {
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         searchInput.addEventListener('keyup', function() {
-            purchasesTable.search(this.value).draw();
+            if (purchasesTable) {
+                purchasesTable.search(this.value).draw();
+            }
         });
     }
     
@@ -39,7 +41,9 @@ function initializeEventListeners() {
     const supplierFilter = document.getElementById('supplierFilter');
     if (supplierFilter) {
         supplierFilter.addEventListener('change', function() {
-            purchasesTable.column(2).search(this.value).draw();
+            if (purchasesTable) {
+                purchasesTable.column(2).search(this.value).draw();
+            }
         });
     }
     
@@ -132,11 +136,11 @@ function initializePurchasesTable() {
                     data: null,
                     render: function(data) {
                         return `
-                            <button class="btn btn-sm btn-outline-info me-1" onclick="viewPurchase(${data.id})">
+                            <button class="btn btn-sm btn-outline-info me-1" onclick="viewPurchase(${data.id})" title="View Details">
                                 <i class="bi bi-eye"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editPurchase(${data.id})">
-                                <i class="bi bi-pencil"></i>
+                            <button class="btn btn-sm btn-outline-primary" onclick="makePayment(${data.id})" title="Make Payment">
+                                <i class="bi bi-cash"></i>
                             </button>
                         `;
                     }
@@ -169,7 +173,7 @@ async function loadPurchases(filters = {}) {
 
 function openPurchaseModal() {
     resetPurchaseForm();
-    document.getElementById('modalTitle').textContent = 'Add Purchase';
+    document.getElementById('modalTitle').textContent = 'New Purchase';
     new bootstrap.Modal(document.getElementById('purchaseModal')).show();
 }
 
@@ -185,24 +189,7 @@ function resetPurchaseForm() {
     document.getElementById('total_amount').value = '';
 }
 
-function editPurchase(id) {
-    API.get(`/purchases/${id}`).then(purchase => {
-        document.getElementById('modalTitle').textContent = 'Edit Purchase';
-        document.getElementById('purchaseId').value = purchase.id;
-        document.getElementById('product_id').value = purchase.product_id;
-        document.getElementById('supplier_id').value = purchase.supplier_id;
-        document.getElementById('quantity').value = purchase.quantity;
-        document.getElementById('unit_price').value = purchase.unit_price;
-        document.getElementById('purchase_date').value = purchase.purchase_date.split('T')[0];
-        document.getElementById('payment_status').value = purchase.payment_status;
-        document.getElementById('notes').value = purchase.notes || '';
-        calculateTotal();
-        
-        new bootstrap.Modal(document.getElementById('purchaseModal')).show();
-    }).catch(error => {
-        Toast.error('Failed to load purchase details');
-    });
-}
+// Removed editPurchase function since purchases shouldn't be editable
 
 function savePurchase() {
     const form = document.getElementById('purchaseForm');
@@ -221,12 +208,8 @@ function savePurchase() {
         notes: document.getElementById('notes').value
     };
     
-    const purchaseId = document.getElementById('purchaseId').value;
-    const method = purchaseId ? 'put' : 'post';
-    const endpoint = purchaseId ? `/purchases/${purchaseId}` : '/purchases';
-    
-    API[method](endpoint, purchaseData).then(response => {
-        Toast.success(purchaseId ? 'Purchase updated successfully' : 'Purchase added successfully');
+    API.post('/purchases', purchaseData).then(response => {
+        Toast.success('Purchase added successfully');
         bootstrap.Modal.getInstance(document.getElementById('purchaseModal')).hide();
         refreshTable();
     }).catch(error => {
@@ -235,55 +218,87 @@ function savePurchase() {
 }
 
 function viewPurchase(id) {
+    Spinner.show();
     API.get(`/purchases/${id}`).then(purchase => {
-        // Display purchase details in a modal or navigate to details page
         showPurchaseDetails(purchase);
+    }).catch(error => {
+        Toast.error('Failed to load purchase details');
+    }).finally(() => {
+        Spinner.hide();
     });
 }
 
 function showPurchaseDetails(purchase) {
-    const detailsHtml = `
-        <div class="row">
-            <div class="col-md-6">
-                <p><strong>Product:</strong> ${escapeHtml(purchase.product_name)}</p>
-                <p><strong>Supplier:</strong> ${escapeHtml(purchase.supplier_name)}</p>
-                <p><strong>Date:</strong> ${formatDate(purchase.purchase_date)}</p>
-                <p><strong>Quantity:</strong> ${formatNumber(purchase.quantity)}</p>
-            </div>
-            <div class="col-md-6">
-                <p><strong>Unit Price:</strong> ${formatCurrency(purchase.unit_price)}</p>
-                <p><strong>Total Amount:</strong> ${formatCurrency(purchase.total_amount)}</p>
-                <p><strong>Paid:</strong> ${formatCurrency(purchase.total_paid)}</p>
-                <p><strong>Balance:</strong> ${formatCurrency(purchase.balance)}</p>
-                <p><strong>Status:</strong> ${getStatusBadge(purchase.payment_status)}</p>
-            </div>
-            ${purchase.notes ? `<div class="col-12"><p><strong>Notes:</strong> ${escapeHtml(purchase.notes)}</p></div>` : ''}
-        </div>
-    `;
-    
-    // Create and show modal
-    const modal = new bootstrap.Modal(document.createElement('div'));
-    modal._element.innerHTML = `
-        <div class="modal fade">
+    // Create modal element if it doesn't exist
+    let detailsModal = document.getElementById('purchaseDetailsModal');
+    if (!detailsModal) {
+        detailsModal = document.createElement('div');
+        detailsModal.id = 'purchaseDetailsModal';
+        detailsModal.className = 'modal fade';
+        detailsModal.innerHTML = `
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">Purchase Details #${purchase.id}</h5>
+                        <h5 class="modal-title">Purchase Details</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
-                    <div class="modal-body">
-                        ${detailsHtml}
+                    <div class="modal-body" id="purchaseDetailsBody">
+                        <!-- Content will be inserted here -->
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="button" class="btn btn-primary" onclick="makePayment(${purchase.id})">Make Payment</button>
+                        <button type="button" class="btn btn-primary" onclick="makePaymentFromDetails(${purchase.id})">Make Payment</button>
                     </div>
                 </div>
             </div>
+        `;
+        document.body.appendChild(detailsModal);
+    }
+    
+    const detailsHtml = `
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>Purchase ID:</strong> #${purchase.id}</p>
+                <p><strong>Date:</strong> ${formatDate(purchase.purchase_date)}</p>
+                <p><strong>Product:</strong> ${escapeHtml(purchase.product_name)}</p>
+                <p><strong>Supplier:</strong> ${escapeHtml(purchase.supplier_name)}</p>
+                <p><strong>Supplier Phone:</strong> ${escapeHtml(purchase.supplier_phone || 'N/A')}</p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>Quantity:</strong> ${formatNumber(purchase.quantity)} ${purchase.unit_type || ''}</p>
+                <p><strong>Unit Price:</strong> ${formatCurrency(purchase.unit_price)}</p>
+                <p><strong>Total Amount:</strong> ${formatCurrency(purchase.total_amount)}</p>
+                <p><strong>Paid:</strong> ${formatCurrency(purchase.total_paid || 0)}</p>
+                <p><strong>Balance:</strong> ${formatCurrency(purchase.balance || purchase.total_amount)}</p>
+                <p><strong>Status:</strong> ${getStatusBadge(purchase.payment_status)}</p>
+            </div>
+            ${purchase.notes ? `
+            <div class="col-12 mt-3">
+                <p><strong>Notes:</strong></p>
+                <p class="text-muted">${escapeHtml(purchase.notes)}</p>
+            </div>
+            ` : ''}
         </div>
     `;
-    document.body.appendChild(modal._element);
+    
+    document.getElementById('purchaseDetailsBody').innerHTML = detailsHtml;
+    
+    // Store purchase ID for payment button
+    window.currentPurchaseId = purchase.id;
+    
+    const modal = new bootstrap.Modal(detailsModal);
     modal.show();
+}
+
+function makePaymentFromDetails(purchaseId) {
+    // Close the details modal
+    const detailsModal = bootstrap.Modal.getInstance(document.getElementById('purchaseDetailsModal'));
+    if (detailsModal) {
+        detailsModal.hide();
+    }
+    
+    // Open payment page
+    makePayment(purchaseId);
 }
 
 function applyDateFilter() {
@@ -292,10 +307,14 @@ function applyDateFilter() {
     
     if (startDate && endDate) {
         loadPurchases({ start_date: startDate, end_date: endDate }).then(purchases => {
-            purchasesTable.clear();
-            purchasesTable.rows.add(purchases);
-            purchasesTable.draw();
+            if (purchasesTable) {
+                purchasesTable.clear();
+                purchasesTable.rows.add(purchases);
+                purchasesTable.draw();
+            }
         });
+    } else {
+        Toast.warning('Please select both start and end dates');
     }
 }
 
@@ -305,14 +324,17 @@ function makePayment(purchaseId) {
 
 function refreshTable() {
     loadPurchases().then(purchases => {
-        purchasesTable.clear();
-        purchasesTable.rows.add(purchases);
-        purchasesTable.draw();
+        if (purchasesTable) {
+            purchasesTable.clear();
+            purchasesTable.rows.add(purchases);
+            purchasesTable.draw();
+        }
     });
 }
 
-// Export functions
+// Make functions globally available
 window.openPurchaseModal = openPurchaseModal;
-window.editPurchase = editPurchase;
 window.savePurchase = savePurchase;
+window.viewPurchase = viewPurchase;
 window.makePayment = makePayment;
+window.makePaymentFromDetails = makePaymentFromDetails;

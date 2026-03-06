@@ -23,7 +23,9 @@ function initializeEventListeners() {
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         searchInput.addEventListener('keyup', function() {
-            paymentsTable.search(this.value).draw();
+            if (paymentsTable) {
+                paymentsTable.search(this.value).draw();
+            }
         });
     }
     
@@ -74,7 +76,6 @@ async function loadSuppliers() {
 async function loadSupplierBalance(supplierId) {
     try {
         const payments = await API.get(`/payments/supplier/${supplierId}`);
-        // Calculate total paid
         const totalPaid = payments.reduce((sum, p) => sum + parseFloat(p.amount_paid), 0);
         document.getElementById('totalPaidDisplay').textContent = formatCurrency(totalPaid);
     } catch (error) {
@@ -110,9 +111,17 @@ function initializePaymentsTable() {
     if (!document.getElementById('paymentsTable')) return;
     
     loadPayments().then(payments => {
+        console.log('Initializing table with payments:', payments); // Debug log
+        
         paymentsTable = $('#paymentsTable').DataTable({
             data: payments,
             columns: [
+                {
+                    data: 'id',
+                    render: function(data) {
+                        return `<span class="fw-semibold">#${data}</span>`;
+                    }
+                },
                 {
                     data: 'payment_date',
                     render: function(data) {
@@ -123,7 +132,7 @@ function initializePaymentsTable() {
                 {
                     data: 'purchase_id',
                     render: function(data) {
-                        return data ? `#${data}` : 'N/A';
+                        return data ? `#${data}` : '<span class="text-muted">N/A</span>';
                     }
                 },
                 {
@@ -132,21 +141,30 @@ function initializePaymentsTable() {
                         return formatCurrency(data);
                     }
                 },
-                { data: 'payment_method' },
-                {
-                    data: 'receipt_path',
+                { 
+                    data: 'payment_method',
                     render: function(data) {
-                        return data ? 
-                            `<button class="btn btn-sm btn-outline-success" onclick="viewReceipt('${data}')">
-                                <i class="bi bi-file-earmark-pdf"></i> View
-                            </button>` : 
-                            '<span class="text-muted">No receipt</span>';
+                        return `<span class="badge bg-info">${escapeHtml(data)}</span>`;
                     }
                 },
                 {
-                    data: 'created_at',
+                    data: null,
                     render: function(data) {
-                        return formatDate(data);
+                        console.log('Rendering receipt button for payment:', data.id, 'receipt_path:', data.receipt_path); // Debug log
+                        
+                        if (data.receipt_path) {
+                            return `<button class="btn btn-sm btn-outline-success" onclick="viewReceipt(${data.id})">
+                                <i class="bi bi-file-earmark-pdf"></i> View
+                            </button>`;
+                        } else {
+                            return '<span class="text-muted">No receipt</span>';
+                        }
+                    }
+                },
+                { 
+                    data: 'notes',
+                    render: function(data) {
+                        return data || '<span class="text-muted">-</span>';
                     }
                 }
             ],
@@ -167,6 +185,7 @@ async function loadPayments(filters = {}) {
         if (params) url += '?' + params;
         
         const payments = await API.get(url);
+        console.log('Payments loaded in loadPayments:', payments); // Debug log
         return payments;
     } catch (error) {
         console.error('Failed to load payments:', error);
@@ -232,26 +251,53 @@ function applyDateFilter() {
     
     if (startDate && endDate) {
         loadPayments({ start_date: startDate, end_date: endDate }).then(payments => {
-            paymentsTable.clear();
-            paymentsTable.rows.add(payments);
-            paymentsTable.draw();
+            if (paymentsTable) {
+                paymentsTable.clear();
+                paymentsTable.rows.add(payments);
+                paymentsTable.draw();
+            }
         });
+    } else {
+        Toast.warning('Please select both start and end dates');
     }
 }
 
-function viewReceipt(path) {
-    window.open('/' + path, '_blank');
+// CRITICAL FIX: Simplified viewReceipt function
+function viewReceipt(paymentId) {
+    console.log('viewReceipt called with paymentId:', paymentId); // Debug log
+    
+    if (!paymentId) {
+        console.error('No payment ID provided');
+        Toast.error('Invalid payment ID');
+        return;
+    }
+    
+    // Make sure it's a number
+    const id = parseInt(paymentId);
+    if (isNaN(id)) {
+        console.error('Invalid payment ID format:', paymentId);
+        Toast.error('Invalid payment ID format');
+        return;
+    }
+    
+    const url = `/api/payments/${id}/receipt`;
+    console.log('Opening URL:', url);
+    
+    // Open in new tab
+    window.open(url, '_blank');
 }
 
 function refreshTable() {
     loadPayments().then(payments => {
-        paymentsTable.clear();
-        paymentsTable.rows.add(payments);
-        paymentsTable.draw();
+        if (paymentsTable) {
+            paymentsTable.clear();
+            paymentsTable.rows.add(payments);
+            paymentsTable.draw();
+        }
     });
 }
 
-// Export functions
+// Make functions globally available
 window.openPaymentModal = openPaymentModal;
 window.savePayment = savePayment;
 window.viewReceipt = viewReceipt;

@@ -69,26 +69,104 @@ exports.createPayment = async (req, res) => {
 
 exports.getPaymentReceipt = async (req, res) => {
     try {
-        const payment = await Payment.findById(req.params.id);
-        if (!payment || !payment.receipt_path) {
-            return res.status(404).json({ error: 'Receipt not found' });
+        const paymentId = req.params.id;
+        console.log('========== RECEIPT REQUEST ==========');
+        console.log('Payment ID from URL params:', paymentId);
+        console.log('URL:', req.originalUrl);
+        console.log('Params:', req.params);
+        
+        if (!paymentId) {
+            console.log('No payment ID provided');
+            return res.status(400).json({ error: 'Payment ID is required' });
+        }
+        
+        // Convert to number and validate
+        const id = parseInt(paymentId);
+        if (isNaN(id)) {
+            console.log('Invalid payment ID format:', paymentId);
+            return res.status(400).json({ error: 'Invalid payment ID format' });
+        }
+        
+        console.log('Looking for payment with ID:', id);
+        
+        const payment = await Payment.findById(id);
+        console.log('Payment found:', payment ? 'Yes' : 'No');
+        
+        if (!payment) {
+            console.log('Payment not found with ID:', id);
+            return res.status(404).json({ error: 'Payment not found' });
+        }
+        
+        console.log('Payment details:', {
+            id: payment.id,
+            receipt_path: payment.receipt_path,
+            supplier_id: payment.supplier_id
+        });
+        
+        if (!payment.receipt_path) {
+            console.log('No receipt path for payment:', id);
+            return res.status(404).json({ error: 'No receipt found for this payment' });
         }
         
         const path = require('path');
         const fs = require('fs');
-        const receiptPath = path.resolve(payment.receipt_path);
         
-        if (!fs.existsSync(receiptPath)) {
-            return res.status(404).json({ error: 'Receipt file not found' });
+        // Get the project root directory
+        const projectRoot = path.resolve(__dirname, '../../');
+        console.log('Project root:', projectRoot);
+        
+        // Construct the full path to the receipt file
+        let receiptPath;
+        
+        if (payment.receipt_path.startsWith('frontend/')) {
+            receiptPath = path.join(projectRoot, payment.receipt_path);
+        } else if (payment.receipt_path.startsWith('../')) {
+            receiptPath = path.join(projectRoot, payment.receipt_path.replace('../', ''));
+        } else {
+            receiptPath = path.join(projectRoot, 'frontend', 'public', 'uploads', 'receipts', path.basename(payment.receipt_path));
         }
         
+        receiptPath = path.normalize(receiptPath);
+        console.log('Looking for file at:', receiptPath);
+        
+        if (!fs.existsSync(receiptPath)) {
+            console.log('File does not exist at:', receiptPath);
+            
+            // Try alternative location
+            const altPath = path.join(projectRoot, 'frontend', 'public', 'uploads', 'receipts', path.basename(payment.receipt_path));
+            console.log('Trying alternative path:', altPath);
+            
+            if (fs.existsSync(altPath)) {
+                receiptPath = altPath;
+                console.log('Found file at alternative path');
+            } else {
+                return res.status(404).json({ error: 'Receipt file not found' });
+            }
+        }
+        
+        console.log('File found, sending...');
+        
+        const ext = path.extname(receiptPath).toLowerCase();
+        const contentTypes = {
+            '.pdf': 'application/pdf',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif'
+        };
+        
+        const contentType = contentTypes[ext] || 'application/octet-stream';
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Disposition', `inline; filename="${path.basename(receiptPath)}"`);
+        
         res.sendFile(receiptPath);
+        console.log('========== END RECEIPT REQUEST ==========');
+        
     } catch (error) {
         console.error('Get receipt error:', error);
         res.status(500).json({ error: 'Failed to fetch receipt' });
     }
 };
-
 exports.getSupplierPayments = async (req, res) => {
     try {
         const payments = await Payment.findBySupplier(req.params.supplierId);

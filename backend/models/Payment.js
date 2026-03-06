@@ -28,6 +28,8 @@ class Payment {
     }
     
     static async findById(id) {
+        console.log('Payment.findById called with id:', id); // Debug log
+        
         const [rows] = await db.query(
             `SELECT sp.*, s.name as supplier_name, s.phone, p.purchase_date, p.total_amount 
              FROM supplier_payments sp
@@ -36,17 +38,38 @@ class Payment {
              WHERE sp.id = ?`,
             [id]
         );
+        
+        console.log('Query result rows:', rows.length); // Debug log
+        
         return rows[0];
     }
     
     static async create(paymentData) {
         const { supplier_id, purchase_id, amount_paid, payment_date, payment_method, receipt_path, notes } = paymentData;
         
+        let normalizedPath = receipt_path;
+        if (receipt_path) {
+            const path = require('path');
+            const projectRoot = path.resolve(__dirname, '../../');
+            
+            if (receipt_path.startsWith(projectRoot)) {
+                normalizedPath = path.relative(projectRoot, receipt_path);
+            } else {
+                normalizedPath = receipt_path;
+            }
+            
+            normalizedPath = normalizedPath.replace(/\\/g, '/');
+            
+            if (!normalizedPath.startsWith('frontend/') && !normalizedPath.startsWith('../')) {
+                normalizedPath = path.join('frontend', 'public', 'uploads', 'receipts', path.basename(receipt_path)).replace(/\\/g, '/');
+            }
+        }
+        
         const [result] = await db.query(
             `INSERT INTO supplier_payments 
              (supplier_id, purchase_id, amount_paid, payment_date, payment_method, receipt_path, notes) 
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [supplier_id, purchase_id || null, amount_paid, payment_date, payment_method, receipt_path, notes]
+            [supplier_id, purchase_id || null, amount_paid, payment_date, payment_method, normalizedPath, notes]
         );
         return result.insertId;
     }

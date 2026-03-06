@@ -82,14 +82,24 @@ exports.getSupplierHistory = async (req, res) => {
         }
         
         const purchases = await Purchase.findBySupplier(req.params.id);
-        const payments = await Payment.findBySupplier(req.params.id);
+        
+        // Get payments for this supplier
+        const db = require('../config/database');
+        const [payments] = await db.query(
+            `SELECT sp.*, p.purchase_date 
+             FROM supplier_payments sp
+             LEFT JOIN purchases p ON sp.purchase_id = p.id
+             WHERE sp.supplier_id = ?
+             ORDER BY sp.payment_date DESC`,
+            [req.params.id]
+        );
         
         res.json({
             supplier,
-            purchases,
-            payments,
-            totalPurchases: purchases.reduce((sum, p) => sum + parseFloat(p.total_amount), 0),
-            totalPaid: payments.reduce((sum, p) => sum + parseFloat(p.amount_paid), 0)
+            purchases: purchases || [],
+            payments: payments || [],
+            totalPurchases: (purchases || []).reduce((sum, p) => sum + parseFloat(p.total_amount || 0), 0),
+            totalPaid: (payments || []).reduce((sum, p) => sum + parseFloat(p.amount_paid || 0), 0)
         });
     } catch (error) {
         console.error('Get supplier history error:', error);

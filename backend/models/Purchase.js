@@ -82,10 +82,10 @@ class Purchase {
     
     static async findBySupplier(supplierId) {
         const [rows] = await db.query(
-            `SELECT p.*, pr.name as product_name 
+            `SELECT p.*, pr.name as product_name, pr.unit_type 
              FROM purchases p
              JOIN products pr ON p.product_id = pr.id
-             WHERE p.supplier_id = ?
+             WHERE p.supplier_id = ? AND pr.is_deleted = false
              ORDER BY p.purchase_date DESC`,
             [supplierId]
         );

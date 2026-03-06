@@ -3,10 +3,16 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
+// Get the project root directory
+const projectRoot = path.resolve(__dirname, '../../');
+
+// Define upload directory relative to project root
+const uploadDir = path.join(projectRoot, 'frontend', 'public', 'uploads', 'receipts');
+
 // Ensure upload directory exists
-const uploadDir = process.env.UPLOAD_PATH || '../frontend/public/uploads/receipts';
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
+    console.log('Created upload directory:', uploadDir);
 }
 
 // Configure storage

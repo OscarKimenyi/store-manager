@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const supplierId = urlParams.get('id');
     if (supplierId) {
+        currentSupplierId = supplierId;
         loadSupplierDetails(supplierId);
     }
 });
@@ -20,15 +21,9 @@ function initializeEventListeners() {
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         searchInput.addEventListener('keyup', function() {
-            suppliersTable.search(this.value).draw();
-        });
-    }
-    
-    // Date range filters
-    const applyFilterBtn = document.getElementById('applyFilter');
-    if (applyFilterBtn) {
-        applyFilterBtn.addEventListener('click', function() {
-            loadSupplierHistory(currentSupplierId);
+            if (suppliersTable) {
+                suppliersTable.search(this.value).draw();
+            }
         });
     }
 }
@@ -41,20 +36,35 @@ function initializeSuppliersTable() {
             data: suppliers,
             columns: [
                 { data: 'name' },
-                { data: 'phone' },
-                { data: 'email' },
-                { data: 'address' },
+                { 
+                    data: 'phone',
+                    render: function(data) {
+                        return data || '<span class="text-muted">N/A</span>';
+                    }
+                },
+                { 
+                    data: 'email',
+                    render: function(data) {
+                        return data || '<span class="text-muted">N/A</span>';
+                    }
+                },
+                { 
+                    data: 'address',
+                    render: function(data) {
+                        return data || '<span class="text-muted">N/A</span>';
+                    }
+                },
                 {
                     data: null,
                     render: function(data) {
                         return `
-                            <button class="btn btn-sm btn-outline-info me-1" onclick="viewSupplier(${data.id})">
+                            <button class="btn btn-sm btn-outline-info me-1" onclick="viewSupplier(${data.id})" title="View Details">
                                 <i class="bi bi-eye"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editSupplier(${data.id})">
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editSupplier(${data.id})" title="Edit">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${data.id})">
+                            <button class="btn btn-sm btn-outline-danger" onclick="showDeleteModal(${data.id})" title="Delete">
                                 <i class="bi bi-trash"></i>
                             </button>
                         `;
@@ -111,6 +121,13 @@ function editSupplier(id) {
     });
 }
 
+// New function to handle edit from details page
+function editSupplierFromDetails() {
+    if (currentSupplierId) {
+        editSupplier(currentSupplierId);
+    }
+}
+
 function saveSupplier() {
     const form = document.getElementById('supplierForm');
     if (!form.checkValidity()) {
@@ -138,6 +155,13 @@ function saveSupplier() {
         } else if (supplierId) {
             // Reload supplier details page
             loadSupplierDetails(supplierId);
+            // Update the displayed supplier info
+            displaySupplierInfo({
+                name: supplierData.name,
+                phone: supplierData.phone,
+                email: supplierData.email,
+                address: supplierData.address
+            });
         }
     }).catch(error => {
         Toast.error('Failed to save supplier');
@@ -150,44 +174,72 @@ function viewSupplier(id) {
 
 async function loadSupplierDetails(id) {
     try {
+        Spinner.show();
         const data = await API.get(`/suppliers/${id}/history`);
+        console.log('Supplier data loaded:', data); // Debug log
+        
         displaySupplierInfo(data.supplier);
-        displaySupplierPurchases(data.purchases);
-        displaySupplierPayments(data.payments);
+        displaySupplierPurchases(data.purchases || []);
+        displaySupplierPayments(data.payments || []);
         updateSupplierStats(data);
         
         currentSupplierId = id;
     } catch (error) {
         console.error('Failed to load supplier details:', error);
         Toast.error('Failed to load supplier details');
+    } finally {
+        Spinner.hide();
     }
 }
 
 function displaySupplierInfo(supplier) {
-    document.getElementById('supplierName').textContent = supplier.name;
-    document.getElementById('supplierPhone').innerHTML = supplier.phone ? 
-        `<i class="bi bi-telephone me-2"></i>${supplier.phone}` : 
-        '<span class="text-muted">No phone</span>';
-    document.getElementById('supplierEmail').innerHTML = supplier.email ? 
-        `<i class="bi bi-envelope me-2"></i>${supplier.email}` : 
-        '<span class="text-muted">No email</span>';
-    document.getElementById('supplierAddress').innerHTML = supplier.address ? 
-        `<i class="bi bi-geo-alt me-2"></i>${supplier.address}` : 
-        '<span class="text-muted">No address</span>';
+    if (!supplier) return;
+    
+    document.getElementById('supplierName').textContent = supplier.name || 'N/A';
+    
+    const phoneElement = document.getElementById('supplierPhone');
+    if (supplier.phone) {
+        phoneElement.innerHTML = `<i class="bi bi-telephone me-2"></i>${supplier.phone}`;
+    } else {
+        phoneElement.innerHTML = '<span class="text-muted"><i class="bi bi-telephone me-2"></i>No phone</span>';
+    }
+    
+    const emailElement = document.getElementById('supplierEmail');
+    if (supplier.email) {
+        emailElement.innerHTML = `<i class="bi bi-envelope me-2"></i>${supplier.email}`;
+    } else {
+        emailElement.innerHTML = '<span class="text-muted"><i class="bi bi-envelope me-2"></i>No email</span>';
+    }
+    
+    const addressElement = document.getElementById('supplierAddress');
+    if (supplier.address) {
+        addressElement.innerHTML = `<i class="bi bi-geo-alt me-2"></i>${supplier.address}`;
+    } else {
+        addressElement.innerHTML = '<span class="text-muted"><i class="bi bi-geo-alt me-2"></i>No address</span>';
+    }
 }
 
 function updateSupplierStats(data) {
-    document.getElementById('totalPurchases').textContent = formatNumber(data.purchases.length);
-    document.getElementById('totalPurchaseAmount').textContent = formatCurrency(data.totalPurchases);
-    document.getElementById('totalPaidAmount').textContent = formatCurrency(data.totalPaid);
-    document.getElementById('balanceAmount').textContent = formatCurrency(data.totalPurchases - data.totalPaid);
+    const purchases = data.purchases || [];
+    const payments = data.payments || [];
+    
+    // Calculate totals
+    const totalPurchases = purchases.length;
+    const totalPurchaseAmount = purchases.reduce((sum, p) => sum + parseFloat(p.total_amount || 0), 0);
+    const totalPaid = payments.reduce((sum, p) => sum + parseFloat(p.amount_paid || 0), 0);
+    const balance = totalPurchaseAmount - totalPaid;
+    
+    document.getElementById('totalPurchases').textContent = formatNumber(totalPurchases);
+    document.getElementById('totalPurchaseAmount').textContent = formatCurrency(totalPurchaseAmount);
+    document.getElementById('totalPaidAmount').textContent = formatCurrency(totalPaid);
+    document.getElementById('balanceAmount').textContent = formatCurrency(balance);
 }
 
 function displaySupplierPurchases(purchases) {
     const tbody = document.getElementById('purchasesTableBody');
     if (!tbody) return;
     
-    if (purchases.length === 0) {
+    if (!purchases || purchases.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No purchases found</td></tr>';
         return;
     }
@@ -195,11 +247,11 @@ function displaySupplierPurchases(purchases) {
     tbody.innerHTML = purchases.map(purchase => `
         <tr>
             <td>${formatDate(purchase.purchase_date)}</td>
-            <td>${escapeHtml(purchase.product_name)}</td>
-            <td>${formatNumber(purchase.quantity)}</td>
-            <td>${formatCurrency(purchase.unit_price)}</td>
-            <td>${formatCurrency(purchase.total_amount)}</td>
-            <td>${getStatusBadge(purchase.payment_status)}</td>
+            <td>${escapeHtml(purchase.product_name || 'N/A')}</td>
+            <td>${formatNumber(purchase.quantity || 0)}</td>
+            <td>${formatCurrency(purchase.unit_price || 0)}</td>
+            <td>${formatCurrency(purchase.total_amount || 0)}</td>
+            <td>${getStatusBadge(purchase.payment_status || 'Unpaid')}</td>
             <td>
                 <button class="btn btn-sm btn-outline-primary" onclick="makePayment(${purchase.id})">
                     <i class="bi bi-cash"></i> Pay
@@ -213,28 +265,31 @@ function displaySupplierPayments(payments) {
     const tbody = document.getElementById('paymentsTableBody');
     if (!tbody) return;
     
-    if (payments.length === 0) {
+    if (!payments || payments.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">No payments found</td></tr>';
         return;
     }
     
-    tbody.innerHTML = payments.map(payment => `
-        <tr>
-            <td>${formatDate(payment.payment_date)}</td>
-            <td>#${payment.purchase_id || 'N/A'}</td>
-            <td>${formatCurrency(payment.amount_paid)}</td>
-            <td><span class="badge bg-info">${escapeHtml(payment.payment_method)}</span></td>
-            <td>
-                ${payment.receipt_path ? 
-                    `<button class="btn btn-sm btn-outline-success" onclick="viewReceipt('${payment.receipt_path}')">
-                        <i class="bi bi-file-earmark-pdf"></i> View
-                    </button>` : 
-                    '<span class="text-muted">No receipt</span>'
-                }
-            </td>
-            <td>${escapeHtml(payment.notes || '')}</td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = payments.map(payment => {
+        // Make sure payment.id exists
+        const paymentId = payment.id || payment.payment_id;
+        return `
+            <tr>
+                <td>${formatDate(payment.payment_date)}</td>
+                <td>${payment.purchase_id ? `#${payment.purchase_id}` : 'N/A'}</td>
+                <td>${formatCurrency(payment.amount_paid || 0)}</td>
+                <td><span class="badge bg-info">${escapeHtml(payment.payment_method || 'Cash')}</span></td>
+                <td>
+                    ${payment.receipt_path ? 
+                        `<button class="btn btn-sm btn-outline-success" onclick="viewReceipt(${paymentId})"><i class="bi bi-file-earmark-pdf"></i> View
+                        </button>` : 
+                        '<span class="text-muted">No receipt</span>'
+                    }
+                </td>
+                <td>${escapeHtml(payment.notes || '')}</td>
+            </tr>
+        `;
+    }).join('');
 }
 
 function showDeleteModal(id) {
@@ -263,21 +318,35 @@ function makePayment(purchaseId) {
     window.location.href = `/payments?purchase=${purchaseId}`;
 }
 
-function viewReceipt(path) {
-    window.open('/' + path, '_blank');
+function viewReceipt(paymentId) {
+    if (!paymentId) {
+        Toast.error('Invalid payment ID');
+        return;
+    }
+    
+    console.log('Viewing receipt for payment ID:', paymentId); // Debug log
+    
+    // Navigate to the receipt URL using the payment ID
+    const receiptUrl = `/api/payments/${paymentId}/receipt`;
+    console.log('Opening URL:', receiptUrl); // Debug log
+    
+    window.open(receiptUrl, '_blank');
 }
 
 function refreshTable() {
     loadSuppliers().then(suppliers => {
-        suppliersTable.clear();
-        suppliersTable.rows.add(suppliers);
-        suppliersTable.draw();
+        if (suppliersTable) {
+            suppliersTable.clear();
+            suppliersTable.rows.add(suppliers);
+            suppliersTable.draw();
+        }
     });
 }
 
-// Export functions
+// Make functions globally available
 window.openSupplierModal = openSupplierModal;
 window.editSupplier = editSupplier;
+window.editSupplierFromDetails = editSupplierFromDetails;
 window.saveSupplier = saveSupplier;
 window.viewSupplier = viewSupplier;
 window.showDeleteModal = showDeleteModal;
