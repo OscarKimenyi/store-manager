@@ -28,6 +28,7 @@ exports.getPurchase = async (req, res) => {
 exports.createPurchase = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+        console.log('Validation errors:', errors.array());
         return res.status(400).json({ errors: errors.array() });
     }
     
@@ -36,13 +37,33 @@ exports.createPurchase = async (req, res) => {
     try {
         await connection.beginTransaction();
         
+        console.log('Creating purchase with data:', req.body); // Debug log
+        
+        // Validate required fields
+        if (!req.body.product_id || !req.body.supplier_id || !req.body.quantity || !req.body.unit_price || !req.body.purchase_date) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+        
         // Create purchase
-        const purchaseId = await Purchase.create(req.body);
+        const purchaseData = {
+            product_id: parseInt(req.body.product_id),
+            supplier_id: parseInt(req.body.supplier_id),
+            quantity: parseInt(req.body.quantity),
+            unit_price: parseFloat(req.body.unit_price),
+            purchase_date: req.body.purchase_date,
+            payment_status: req.body.payment_status || 'Unpaid',
+            notes: req.body.notes || ''
+        };
+        
+        console.log('Processed purchase data:', purchaseData);
+        
+        const purchaseId = await Purchase.create(purchaseData);
+        console.log('Purchase created with ID:', purchaseId);
         
         // Update product quantity
         await Product.updateQuantity(
-            req.body.product_id, 
-            req.body.quantity, 
+            purchaseData.product_id, 
+            purchaseData.quantity, 
             'add'
         );
         
@@ -55,7 +76,7 @@ exports.createPurchase = async (req, res) => {
     } catch (error) {
         await connection.rollback();
         console.error('Create purchase error:', error);
-        res.status(500).json({ error: 'Failed to create purchase' });
+        res.status(500).json({ error: 'Failed to create purchase: ' + error.message });
     } finally {
         connection.release();
     }

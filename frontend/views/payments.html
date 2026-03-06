@@ -183,63 +183,80 @@
                 </div>
                 <div class="modal-body">
                     <form id="paymentForm">
+                        <div class="modal-body">
+                            <form id="paymentForm">
+                                <input type="hidden" id="paymentId">
+                                
+                                <!-- Purchase Info Display -->
+                                <div id="purchase_info" class="mb-3"></div>
+                                
+                                <!-- Quick Amount Buttons -->
+                                <div id="quick_amounts" class="mb-3"></div>
+                                
+                                <!-- Balance Remaining -->
+                                <div id="balance_remaining" class="mb-3 text-muted"></div>
+                                
+                                <!-- Payment Status Preview -->
+                                <div id="payment_status_preview" class="mb-3"></div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Supplier *</label>
+                                        <select class="form-select" id="supplier_id" required>
+                                            <option value="">Select Supplier</option>
+                                            <!-- Suppliers will be loaded here -->
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Purchase (Optional)</label>
+                                        <select class="form-select" id="purchase_id">
+                                            <option value="">Select Purchase</option>
+                                            <!-- Purchases will be loaded here -->
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Amount Paid *</label>
+                                        <input type="number" class="form-control" id="amount_paid" step="0.01" min="0.01" required>
+                                    </div>
+                                    
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Payment Date *</label>
+                                        <input type="date" class="form-control" id="payment_date" required>
+                                    </div>
+                                    
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Payment Method</label>
+                                        <select class="form-select" id="payment_method">
+                                            <option value="Cash">Cash</option>
+                                            <option value="Bank">Bank Transfer</option>
+                                            <option value="Mobile Money">Mobile Money</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Upload Receipt</label>
+                                        <input type="file" class="form-control" id="receipt" accept=".jpg,.jpeg,.png,.gif,.pdf">
+                                        <div class="form-text">Max file size: 5MB. Allowed: JPG, PNG, GIF, PDF</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Total Paid to Supplier</label>
+                                        <div class="form-control-plaintext fw-bold" id="totalPaidDisplay">$0.00</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Notes</label>
+                                    <textarea class="form-control" id="notes" rows="2" maxlength="500"></textarea>
+                                </div>
+                            </form>
+                        </div>
                         <input type="hidden" id="paymentId">
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Supplier *</label>
-                                <select class="form-select" id="supplier_id" required>
-                                    <option value="">Select Supplier</option>
-                                    <!-- Suppliers will be loaded here -->
-                                </select>
-                            </div>
-                            
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Purchase (Optional)</label>
-                                <select class="form-select" id="purchase_id">
-                                    <option value="">Select Purchase</option>
-                                    <!-- Purchases will be loaded here -->
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label">Amount Paid *</label>
-                                <input type="number" class="form-control" id="amount_paid" step="0.01" min="0.01" required>
-                            </div>
-                            
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label">Payment Date *</label>
-                                <input type="date" class="form-control" id="payment_date" required>
-                            </div>
-                            
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label">Payment Method</label>
-                                <select class="form-select" id="payment_method">
-                                    <option value="Cash">Cash</option>
-                                    <option value="Bank">Bank Transfer</option>
-                                    <option value="Mobile Money">Mobile Money</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Upload Receipt</label>
-                                <input type="file" class="form-control" id="receipt" accept=".jpg,.jpeg,.png,.gif,.pdf">
-                                <div class="form-text">Max file size: 5MB. Allowed: JPG, PNG, GIF, PDF</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Total Paid to Supplier</label>
-                                <div class="form-control-plaintext fw-bold" id="totalPaidDisplay">$0.00</div>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">Notes</label>
-                            <textarea class="form-control" id="notes" rows="2" maxlength="500"></textarea>
-                        </div>
                     </form>
                 </div>
                 <div class="modal-footer">

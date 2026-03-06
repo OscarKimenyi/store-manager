@@ -1,6 +1,10 @@
 // Payments Management Module
 let paymentsTable;
 let selectedFile = null;
+let currentPurchaseId = null;
+let currentPurchaseTotal = 0;
+let currentPurchasePaid = 0;
+let currentPurchaseBalance = 0;
 
 document.addEventListener('DOMContentLoaded', function() {
     initializePaymentsTable();
@@ -11,9 +15,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const purchaseId = urlParams.get('purchase');
     if (purchaseId) {
+        currentPurchaseId = purchaseId;
         setTimeout(() => {
             document.getElementById('purchase_id').value = purchaseId;
             loadPurchaseDetails(purchaseId);
+            openPaymentModal(); // Auto-open payment modal
         }, 500);
     }
 });
@@ -48,12 +54,82 @@ function initializeEventListeners() {
         });
     }
     
+    // Purchase change - load purchase details
+    const purchaseSelect = document.getElementById('purchase_id');
+    if (purchaseSelect) {
+        purchaseSelect.addEventListener('change', function() {
+            if (this.value) {
+                loadSelectedPurchaseDetails(this.value);
+            } else {
+                resetPaymentAmount();
+            }
+        });
+    }
+    
+    // Amount paid input - validate against balance
+    const amountPaid = document.getElementById('amount_paid');
+    if (amountPaid) {
+        amountPaid.addEventListener('input', function() {
+            validatePaymentAmount();
+        });
+    }
+    
+    // Quick amount buttons
+    document.querySelectorAll('.quick-amount-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const percentage = parseInt(this.dataset.percentage);
+            setQuickAmount(percentage);
+        });
+    });
+    
     // File input change
     const receiptFile = document.getElementById('receipt');
     if (receiptFile) {
         receiptFile.addEventListener('change', function(e) {
             selectedFile = e.target.files[0];
         });
+    }
+}
+
+function setQuickAmount(percentage) {
+    if (currentPurchaseBalance > 0) {
+        const amount = (currentPurchaseBalance * percentage / 100).toFixed(2);
+        document.getElementById('amount_paid').value = amount;
+        validatePaymentAmount();
+    }
+}
+
+function validatePaymentAmount() {
+    const amountInput = document.getElementById('amount_paid');
+    const amount = parseFloat(amountInput.value) || 0;
+    const balanceRemaining = document.getElementById('balance_remaining');
+    const paymentStatus = document.getElementById('payment_status_preview');
+    const submitBtn = document.querySelector('#paymentModal .btn-primary');
+    
+    if (amount > currentPurchaseBalance) {
+        amountInput.classList.add('is-invalid');
+        if (balanceRemaining) {
+            balanceRemaining.innerHTML = `<span class="text-danger">Amount exceeds balance! Max: ${formatCurrency(currentPurchaseBalance)}</span>`;
+        }
+        if (submitBtn) submitBtn.disabled = true;
+    } else {
+        amountInput.classList.remove('is-invalid');
+        if (balanceRemaining) {
+            const newBalance = currentPurchaseBalance - amount;
+            balanceRemaining.innerHTML = `Remaining after payment: <strong>${formatCurrency(newBalance)}</strong>`;
+        }
+        if (submitBtn) submitBtn.disabled = false;
+        
+        // Update payment status preview
+        if (paymentStatus) {
+            if (amount >= currentPurchaseBalance) {
+                paymentStatus.innerHTML = '<span class="badge-success">Status after payment: Paid</span>';
+            } else if (amount > 0) {
+                paymentStatus.innerHTML = '<span class="badge-warning">Status after payment: Partial</span>';
+            } else {
+                paymentStatus.innerHTML = '<span class="badge-danger">Status after payment: Unpaid</span>';
+            }
+        }
     }
 }
 
@@ -89,7 +165,9 @@ async function loadSupplierPurchases(supplierId) {
         const select = document.getElementById('purchase_id');
         if (select) {
             select.innerHTML = '<option value="">Select Purchase (Optional)</option>' + 
-                purchases.map(p => `<option value="${p.id}">#${p.id} - ${escapeHtml(p.product_name)} (Balance: ${formatCurrency(p.balance)})</option>`).join('');
+                purchases.map(p => `<option value="${p.id}" data-total="${p.total_amount}" data-paid="${p.total_paid || 0}" data-balance="${p.balance}">
+                    #${p.id} - ${escapeHtml(p.product_name)} | Total: ${formatCurrency(p.total_amount)} | Paid: ${formatCurrency(p.total_paid || 0)} | Balance: ${formatCurrency(p.balance)}
+                </option>`).join('');
         }
     } catch (error) {
         console.error('Failed to load supplier purchases:', error);
@@ -100,10 +178,113 @@ async function loadPurchaseDetails(purchaseId) {
     try {
         const purchase = await API.get(`/purchases/${purchaseId}`);
         document.getElementById('supplier_id').value = purchase.supplier_id;
-        document.getElementById('amount_paid').value = purchase.balance;
+        
+        // Store purchase details
+        currentPurchaseId = purchase.id;
+        currentPurchaseTotal = parseFloat(purchase.total_amount);
+        currentPurchasePaid = parseFloat(purchase.total_paid || 0);
+        currentPurchaseBalance = parseFloat(purchase.balance || purchase.total_amount);
+        
+        // Set amount to balance by default
+        document.getElementById('amount_paid').value = currentPurchaseBalance.toFixed(2);
+        
+        // Update UI with purchase info
+        updatePurchaseInfo();
+        
         await loadSupplierPurchases(purchase.supplier_id);
+        
+        // Select this purchase in dropdown
+        setTimeout(() => {
+            document.getElementById('purchase_id').value = purchaseId;
+            loadSelectedPurchaseDetails(purchaseId);
+        }, 500);
+        
     } catch (error) {
         console.error('Failed to load purchase details:', error);
+    }
+}
+
+function loadSelectedPurchaseDetails(purchaseId) {
+    const select = document.getElementById('purchase_id');
+    const selected = select.options[select.selectedIndex];
+    
+    if (selected && selected.value) {
+        currentPurchaseId = purchaseId;
+        currentPurchaseTotal = parseFloat(selected.dataset.total);
+        currentPurchasePaid = parseFloat(selected.dataset.paid || 0);
+        currentPurchaseBalance = parseFloat(selected.dataset.balance || currentPurchaseTotal);
+        
+        document.getElementById('amount_paid').value = currentPurchaseBalance.toFixed(2);
+        updatePurchaseInfo();
+    }
+}
+
+function updatePurchaseInfo() {
+    const purchaseInfo = document.getElementById('purchase_info');
+    if (purchaseInfo) {
+        purchaseInfo.innerHTML = `
+            <div class="alert alert-info">
+                <div class="row">
+                    <div class="col-md-4">
+                        <strong>Total:</strong> ${formatCurrency(currentPurchaseTotal)}
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Paid:</strong> ${formatCurrency(currentPurchasePaid)}
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Balance:</strong> ${formatCurrency(currentPurchaseBalance)}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Update balance remaining display
+    const balanceRemaining = document.getElementById('balance_remaining');
+    if (balanceRemaining) {
+        balanceRemaining.innerHTML = `Remaining after payment: <strong>${formatCurrency(currentPurchaseBalance)}</strong>`;
+    }
+    
+    // Show quick amount buttons
+    const quickAmounts = document.getElementById('quick_amounts');
+    if (quickAmounts) {
+        quickAmounts.innerHTML = `
+            <button type="button" class="btn btn-sm btn-outline-primary quick-amount-btn me-2" data-percentage="25">25%</button>
+            <button type="button" class="btn btn-sm btn-outline-primary quick-amount-btn me-2" data-percentage="50">50%</button>
+            <button type="button" class="btn btn-sm btn-outline-primary quick-amount-btn me-2" data-percentage="75">75%</button>
+            <button type="button" class="btn btn-sm btn-outline-primary quick-amount-btn" data-percentage="100">100%</button>
+        `;
+        
+        // Re-attach event listeners
+        document.querySelectorAll('.quick-amount-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const percentage = parseInt(this.dataset.percentage);
+                setQuickAmount(percentage);
+            });
+        });
+    }
+}
+
+function resetPaymentAmount() {
+    currentPurchaseId = null;
+    currentPurchaseTotal = 0;
+    currentPurchasePaid = 0;
+    currentPurchaseBalance = 0;
+    document.getElementById('amount_paid').value = '';
+    
+    const purchaseInfo = document.getElementById('purchase_info');
+    if (purchaseInfo) {
+        purchaseInfo.innerHTML = '';
+    }
+    
+    const balanceRemaining = document.getElementById('balance_remaining');
+    if (balanceRemaining) {
+        balanceRemaining.innerHTML = '';
+    }
+    
+    const quickAmounts = document.getElementById('quick_amounts');
+    if (quickAmounts) {
+        quickAmounts.innerHTML = '';
     }
 }
 
@@ -111,8 +292,6 @@ function initializePaymentsTable() {
     if (!document.getElementById('paymentsTable')) return;
     
     loadPayments().then(payments => {
-        console.log('Initializing table with payments:', payments); // Debug log
-        
         paymentsTable = $('#paymentsTable').DataTable({
             data: payments,
             columns: [
@@ -131,8 +310,11 @@ function initializePaymentsTable() {
                 { data: 'supplier_name' },
                 {
                     data: 'purchase_id',
-                    render: function(data) {
-                        return data ? `#${data}` : '<span class="text-muted">N/A</span>';
+                    render: function(data, type, row) {
+                        if (data) {
+                            return `<a href="#" onclick="viewPurchase(${data}); return false;">#${data}</a>`;
+                        }
+                        return '<span class="text-muted">N/A</span>';
                     }
                 },
                 {
@@ -150,15 +332,12 @@ function initializePaymentsTable() {
                 {
                     data: null,
                     render: function(data) {
-                        console.log('Rendering receipt button for payment:', data.id, 'receipt_path:', data.receipt_path); // Debug log
-                        
                         if (data.receipt_path) {
                             return `<button class="btn btn-sm btn-outline-success" onclick="viewReceipt(${data.id})">
                                 <i class="bi bi-file-earmark-pdf"></i> View
                             </button>`;
-                        } else {
-                            return '<span class="text-muted">No receipt</span>';
                         }
+                        return '<span class="text-muted">No receipt</span>';
                     }
                 },
                 { 
@@ -185,7 +364,6 @@ async function loadPayments(filters = {}) {
         if (params) url += '?' + params;
         
         const payments = await API.get(url);
-        console.log('Payments loaded in loadPayments:', payments); // Debug log
         return payments;
     } catch (error) {
         console.error('Failed to load payments:', error);
@@ -197,6 +375,12 @@ async function loadPayments(filters = {}) {
 function openPaymentModal() {
     resetPaymentForm();
     document.getElementById('modalTitle').textContent = 'Record Payment';
+    
+    // If we have a pre-selected purchase, show its info
+    if (currentPurchaseId) {
+        loadSelectedPurchaseDetails(currentPurchaseId);
+    }
+    
     new bootstrap.Modal(document.getElementById('paymentModal')).show();
 }
 
@@ -210,7 +394,22 @@ function resetPaymentForm() {
     document.getElementById('notes').value = '';
     document.getElementById('receipt').value = '';
     document.getElementById('totalPaidDisplay').textContent = '$0.00';
+    
+    // Reset purchase info
+    const purchaseInfo = document.getElementById('purchase_info');
+    if (purchaseInfo) purchaseInfo.innerHTML = '';
+    
+    const balanceRemaining = document.getElementById('balance_remaining');
+    if (balanceRemaining) balanceRemaining.innerHTML = '';
+    
+    const quickAmounts = document.getElementById('quick_amounts');
+    if (quickAmounts) quickAmounts.innerHTML = '';
+    
     selectedFile = null;
+    currentPurchaseId = null;
+    currentPurchaseTotal = 0;
+    currentPurchasePaid = 0;
+    currentPurchaseBalance = 0;
 }
 
 async function savePayment() {
@@ -220,10 +419,18 @@ async function savePayment() {
         return;
     }
     
+    const amountPaid = parseFloat(document.getElementById('amount_paid').value);
+    
+    // Validate amount doesn't exceed balance
+    if (currentPurchaseId && amountPaid > currentPurchaseBalance) {
+        Toast.error(`Amount cannot exceed balance of ${formatCurrency(currentPurchaseBalance)}`);
+        return;
+    }
+    
     const formData = new FormData();
     formData.append('supplier_id', document.getElementById('supplier_id').value);
     formData.append('purchase_id', document.getElementById('purchase_id').value || '');
-    formData.append('amount_paid', document.getElementById('amount_paid').value);
+    formData.append('amount_paid', amountPaid);
     formData.append('payment_date', document.getElementById('payment_date').value);
     formData.append('payment_method', document.getElementById('payment_method').value);
     formData.append('notes', document.getElementById('notes').value);
@@ -234,12 +441,32 @@ async function savePayment() {
     
     try {
         const response = await API.upload('/payments', formData);
-        Toast.success('Payment recorded successfully');
+        
+        // Show success message with payment status
+        let statusMessage = 'Payment recorded successfully';
+        if (currentPurchaseId) {
+            if (amountPaid >= currentPurchaseBalance) {
+                statusMessage = 'Payment recorded successfully! Purchase is now fully paid.';
+            } else {
+                const remaining = currentPurchaseBalance - amountPaid;
+                statusMessage = `Payment recorded successfully! Remaining balance: ${formatCurrency(remaining)}`;
+            }
+        }
+        
+        Toast.success(statusMessage);
         bootstrap.Modal.getInstance(document.getElementById('paymentModal')).hide();
         
         if (document.getElementById('paymentsTable')) {
             refreshTable();
         }
+        
+        // If we came from a purchase page, redirect back
+        if (currentPurchaseId) {
+            setTimeout(() => {
+                window.location.href = `/purchases`;
+            }, 2000);
+        }
+        
     } catch (error) {
         Toast.error('Failed to record payment');
     }
@@ -262,29 +489,17 @@ function applyDateFilter() {
     }
 }
 
-// CRITICAL FIX: Simplified viewReceipt function
 function viewReceipt(paymentId) {
-    console.log('viewReceipt called with paymentId:', paymentId); // Debug log
-    
     if (!paymentId) {
-        console.error('No payment ID provided');
         Toast.error('Invalid payment ID');
         return;
     }
     
-    // Make sure it's a number
-    const id = parseInt(paymentId);
-    if (isNaN(id)) {
-        console.error('Invalid payment ID format:', paymentId);
-        Toast.error('Invalid payment ID format');
-        return;
-    }
-    
-    const url = `/api/payments/${id}/receipt`;
-    console.log('Opening URL:', url);
-    
-    // Open in new tab
-    window.open(url, '_blank');
+    window.open(`/api/payments/${paymentId}/receipt`, '_blank');
+}
+
+function viewPurchase(purchaseId) {
+    window.location.href = `/purchases?id=${purchaseId}`;
 }
 
 function refreshTable() {
@@ -301,3 +516,4 @@ function refreshTable() {
 window.openPaymentModal = openPaymentModal;
 window.savePayment = savePayment;
 window.viewReceipt = viewReceipt;
+window.viewPurchase = viewPurchase;

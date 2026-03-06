@@ -51,14 +51,25 @@ class Purchase {
     
     static async create(purchaseData) {
         const { product_id, supplier_id, quantity, unit_price, purchase_date, payment_status, notes } = purchaseData;
+        
+        // Calculate total amount for reference only, but don't insert it
         const total_amount = quantity * unit_price;
         
+        console.log('Purchase.create with data:', {
+            product_id, supplier_id, quantity, unit_price, 
+            total_amount, purchase_date, payment_status, notes
+        });
+        
+        // IMPORTANT FIX: Remove total_amount and balance from the INSERT
+        // These are GENERATED columns in the database
         const [result] = await db.query(
             `INSERT INTO purchases 
-             (product_id, supplier_id, quantity, unit_price, total_amount, purchase_date, payment_status, notes) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [product_id, supplier_id, quantity, unit_price, total_amount, purchase_date, payment_status || 'Unpaid', notes]
+             (product_id, supplier_id, quantity, unit_price, purchase_date, payment_status, notes) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [product_id, supplier_id, quantity, unit_price, purchase_date, payment_status || 'Unpaid', notes]
         );
+        
+        console.log('Purchase insert result:', result);
         return result.insertId;
     }
     

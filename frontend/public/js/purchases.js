@@ -74,6 +74,7 @@ async function loadProducts() {
         }
     } catch (error) {
         console.error('Failed to load products:', error);
+        Toast.error('Failed to load products');
     }
 }
 
@@ -90,6 +91,7 @@ async function loadSuppliers() {
         });
     } catch (error) {
         console.error('Failed to load suppliers:', error);
+        Toast.error('Failed to load suppliers');
     }
 }
 
@@ -189,32 +191,90 @@ function resetPurchaseForm() {
     document.getElementById('total_amount').value = '';
 }
 
-// Removed editPurchase function since purchases shouldn't be editable
-
+// FIXED: Save purchase function with better error handling
 function savePurchase() {
+    console.log('savePurchase function called'); // Debug log
+    
     const form = document.getElementById('purchaseForm');
+    
+    // Check form validity
     if (!form.checkValidity()) {
+        console.log('Form is invalid'); // Debug log
         form.reportValidity();
         return;
     }
     
+    // Get form values
+    const product_id = document.getElementById('product_id').value;
+    const supplier_id = document.getElementById('supplier_id').value;
+    const quantity = document.getElementById('quantity').value;
+    const unit_price = document.getElementById('unit_price').value;
+    const purchase_date = document.getElementById('purchase_date').value;
+    const payment_status = document.getElementById('payment_status').value;
+    const notes = document.getElementById('notes').value;
+    
+    // Validate required fields
+    if (!product_id) {
+        Toast.error('Please select a product');
+        return;
+    }
+    if (!supplier_id) {
+        Toast.error('Please select a supplier');
+        return;
+    }
+    if (!quantity || quantity <= 0) {
+        Toast.error('Please enter a valid quantity');
+        return;
+    }
+    if (!unit_price || unit_price <= 0) {
+        Toast.error('Please enter a valid unit price');
+        return;
+    }
+    if (!purchase_date) {
+        Toast.error('Please select a purchase date');
+        return;
+    }
+    
     const purchaseData = {
-        product_id: document.getElementById('product_id').value,
-        supplier_id: document.getElementById('supplier_id').value,
-        quantity: document.getElementById('quantity').value,
-        unit_price: document.getElementById('unit_price').value,
-        purchase_date: document.getElementById('purchase_date').value,
-        payment_status: document.getElementById('payment_status').value,
-        notes: document.getElementById('notes').value
+        product_id: parseInt(product_id),
+        supplier_id: parseInt(supplier_id),
+        quantity: parseInt(quantity),
+        unit_price: parseFloat(unit_price),
+        purchase_date: purchase_date,
+        payment_status: payment_status,
+        notes: notes || ''
     };
     
-    API.post('/purchases', purchaseData).then(response => {
-        Toast.success('Purchase added successfully');
-        bootstrap.Modal.getInstance(document.getElementById('purchaseModal')).hide();
-        refreshTable();
-    }).catch(error => {
-        Toast.error('Failed to save purchase');
-    });
+    console.log('Saving purchase with data:', purchaseData); // Debug log
+    
+    // Show loading state on button
+    const saveBtn = document.querySelector('#purchaseModal .btn-primary');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+    saveBtn.disabled = true;
+    
+    // Make API call
+    API.post('/purchases', purchaseData)
+        .then(response => {
+            console.log('Purchase saved successfully:', response); // Debug log
+            Toast.success('Purchase added successfully');
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('purchaseModal'));
+            modal.hide();
+            
+            // Refresh table
+            refreshTable();
+        })
+        .catch(error => {
+            console.error('Failed to save purchase:', error); // Debug log
+            Toast.error(error.message || 'Failed to save purchase');
+        })
+        .finally(() => {
+            // Restore button state
+            saveBtn.innerHTML = originalText;
+            saveBtn.disabled = false;
+        });
 }
 
 function viewPurchase(id) {
